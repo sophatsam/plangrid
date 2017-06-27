@@ -1,9 +1,9 @@
 const models  = require('../../models');
-const https = require('https');
 const PG_config = require('../../config/config');
 const moment = require('moment');
 const tz = require('moment-timezone');
 const Logger = require('../../config/logger');
+const request = require('request');
 
 // save to database
 function createProject(project) {
@@ -27,40 +27,43 @@ function createProject(project) {
 }
 
 // iterator over list
-const iterateProjectlist = (projects) => {
-	let data = projects.data;
-	data.forEach(project => createProject(project));
+const iterateProjectlist = (projects, firstRequest) => {
+	projects.data.forEach(response => {
+		if (response.status_code === 200){
+			var body = JSON.parse(response.body);
+			body.data.forEach(project => createProject(project));
+		}
+	})
+
 }
 
 // get projects
-const getProjectsFromPlanGrid = () => {
+const getProjectsFromPlanGrid = (requests) => {
 
 	return new Promise((resolve, reject) => {
+
+		var batchRequest = requests || [{"method": "GET", "path": "/projects"}]
 		let options = {
-			hostname: PG_config.plangrid.url,
-			path: '/projects',
-			auth: PG_config.plangrid.key,
-			method: 'GET',
-			headers: PG_config.plangrid.headers
+			url: 'https://' + PG_config.plangrid.url + '/batch',
+			auth: { 'user' : PG_config.plangrid.key },
+			method: 'POST',
+			headers: PG_config.plangrid.headers,
+			json: batchRequest
 		};
 
-		let req = https.request(options, (res) => {
-			let data = '';
-			
-			res.setEncoding('utf8');
-			res.on('data', (chunk) => { data += chunk });
-			res.on('end', () => {
+		let data = '';
+
+		request(options)
+			.on('data', (chunk) => { data += chunk })
+			.on('end', (res) => {
 				let jsonProjects = JSON.parse(data);
 				resolve(jsonProjects);
+			})
+			.on('error', (e) => {
+			  Logger.error(`problem with request: ${e.message}`);
+			  reject(e);
 			});
-		});
 
-		req.on('error', (e) => {
-		  Logger.error(`problem with request: ${e.message}`);
-		  reject(e);
-		});
-
-		req.end();
 	})
 }
 
