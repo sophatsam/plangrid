@@ -27,53 +27,72 @@ function createProject(project) {
 }
 
 // iterator over list
-const iterateProjectlist = (projects, firstRequest) => {
-	projects.data.forEach(response => {
+const iterateProjectlist = (result) => {
+
+	result.projects.data.forEach(response => {
 		if (response.status_code === 200){
-			var body = JSON.parse(response.body);
+			let body = JSON.parse(response.body);
 			body.data.forEach(project => createProject(project));
 		}
 	})
 
+	// make batch call if total count > number count
+	let first = result.projects.data[0];
+	let totalCount = JSON.parse(first.body).total_count;
+	if (result.count < totalCount){
+		let batch = [];
+		let calls = Math.ceil(totalCount / 50);
+
+		for(let count = result.count / 50; count < calls; count++){
+			batch.push({
+				"method": "GET",
+				"path": "/projects?skip=" + (count * 50)
+			})
+		}
+
+		setTimeout(function(){
+			getProjects(batch, calls * 50);
+		}, 1000)
+	}
+
 }
 
 // get projects
-const getProjectsFromPlanGrid = (requests) => {
+const getProjectsFromPlanGrid = (requests, count) => {
 
 	return new Promise((resolve, reject) => {
-
-		var batchRequest = requests || [{"method": "GET", "path": "/projects"}]
+		let batchRequest = requests || [{"method": "GET", "path": "/projects"}]
 		let options = {
 			url: 'https://' + PG_config.plangrid.url + '/batch',
 			auth: { 'user' : PG_config.plangrid.key },
 			method: 'POST',
 			headers: PG_config.plangrid.headers,
 			json: batchRequest
-		};
+		}
 
 		let data = '';
-
 		request(options)
 			.on('data', (chunk) => { data += chunk })
 			.on('end', (res) => {
 				let jsonProjects = JSON.parse(data);
-				resolve(jsonProjects);
+				resolve({"projects": jsonProjects, "count": count || 50});
 			})
 			.on('error', (e) => {
 			  Logger.error(`problem with request: ${e.message}`);
 			  reject(e);
-			});
+			})
 
 	})
 }
 
 // Main function to poll the API and create projects
-exports.getProjects = () => {
-	getProjectsFromPlanGrid()
-	.then(projects => iterateProjectlist(projects))
+const getProjects = (requests, count) => {
+	getProjectsFromPlanGrid(requests, count)
+	.then(result => iterateProjectlist(result))
 	.then(result => Logger.info(result))
 	.catch(err => Logger.error(err))
 }
+exports.getProjects = getProjects;
 
 // Create a single Project
 exports.createProject = createProject;
