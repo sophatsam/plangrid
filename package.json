@@ -16,6 +16,7 @@
     "moment-timezone": "^0.5.5",
     "node-schedule": "^1.2.0",
     "pg": "^6.1.0",
+    "request": "^2.81.0",
     "sequelize": "^3.24.3",
     "tedious": "^1.14.0",
     "winston": "^2.2.0",
