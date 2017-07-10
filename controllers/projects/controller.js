@@ -18,6 +18,18 @@ function createProject(project) {
 		defaults: { 
 			project_name: project.name,
 			project_id: pid,
+			custom_id: project.custom_id,
+			type: project.type,
+			status: project.status,
+			owner: project.owner,
+			start_date: project.start_date,
+			end_date: project.end_date,
+			street_1: project.street_1,
+			street_2: project.street_2,
+			city: project.city,
+			region: project.region,
+			postal_code: project.postal_code,
+			country: project.country,
 			updatedAt: now
 		},
 	})
