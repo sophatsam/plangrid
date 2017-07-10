@@ -15,6 +15,18 @@ module.exports = function(sequelize, DataTypes) {
     project_id: {
       type: DataTypes.STRING
     },
+    custom_id: DataTypes.STRING,
+    type: DataTypes.STRING,
+    status: DataTypes.STRING,
+    owner: DataTypes.STRING,
+    start_date: DataTypes.DATE,
+    end_date: DataTypes.DATE,
+    street_1: DataTypes.STRING,
+    street_2: DataTypes.STRING,
+    city: DataTypes.STRING,
+    region: DataTypes.STRING,
+    postal_code: DataTypes.STRING,
+    country: DataTypes.STRING,
     created_at: DataTypes.DATE,
     updated_at: DataTypes.DATE,
     createdAt: DataTypes.DATE,
