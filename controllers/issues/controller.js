@@ -1,5 +1,5 @@
 const models  = require('../../models');
-const https = require('https');
+const request = require('request');
 const PG_config = require('../../config/config');
 const moment = require('moment');
 const tz = require('moment-timezone');
@@ -137,11 +137,19 @@ const getIssues = (projectId) => {
 
 // iterate over projects to get a list of all associated issues
 const iterateProjectsList = (projectIds) => {
+	console.log("project IDs: ", projectIds);
 
+	var requests = Math.ceil(projectIds.length / 50); // number of batch requests to make depending on number of projects
+
+	var batches = [];
+	for(var i = 0; i < requests; i++){
+		batches[i] = projectIds.slice(i * 50, i + 50);
+	}
+	console.log("requests: ", batches);
 	const issuePromises = projectIds.map(id => new Promise((resolve, reject) => {
 
 		setTimeout(() => {
-			resolve (getIssues(id));
+			// resolve (getIssues(id));
 		}, RATE_LIMIT);
 
 	}));
