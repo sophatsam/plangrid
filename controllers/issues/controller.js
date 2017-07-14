@@ -84,74 +84,96 @@ function createIssue(project, issue) {
 }
 
 // iterate over list of issues
-const iterateIssueList = (project_uid, issues) => {
-	
+const iterateIssueList = (project_uid, issues, count) => {
 	let data = issues.data;
 
 	// filter out deleted issues
 	data.filter(issue => { return data.deleted != true })
 		.forEach(issue => createIssue(project_uid, issue));
+
+	// make additional batch requests if issues.total_count > count
+	if (issues.total_count > count){
+		let batch = [];
+		let calls = Math.ceil(issues.total_count / 50);
+
+		for (let i = count / 50; i < calls; i ++){
+			batch.push({
+				"method": "GET",
+				"path": "/projects/" + project_uid + "/issues?skip=" + (i * 50)
+			})
+		}
+
+		setTimeout( () => {
+			getIssues( [project_uid], calls * 50, batch );
+		}, RATE_LIMIT);
+	}
 }
 
 // get issues with a 1 second delay
-const getIssues = (projectId) => {
-	
+const getIssues = (batch, count, requests) => {
 	return new Promise((resolve, reject) => {
-
-		let uid = projectId;
+		// create requests object if one is not passed
+		// only the first call doesn't contain a requests object
+		if (!requests){
+			requests = []
+			batch.forEach(projectId => {
+				requests.push({
+					"method": "GET",
+					"path": "/projects/" + projectId + '/issues'
+				});
+			});
+		}
 
 		let options = {
-			hostname: PG_config.plangrid.url,
-			path: `/projects/${uid}/issues`,
-			auth: PG_config.plangrid.key,
-			method: 'GET',
-			headers: PG_config.plangrid.headers
-		};
+			url: 'https://' + PG_config.plangrid.url + '/batch',
+			auth: { 'user': PG_config.plangrid.key },
+			method: 'POST',
+			headers: PG_config.plangrid.headers,
+			json: requests
+		}
 
-		let req = https.request(options, (res) => {
-			let data = '';
-			
-			res.setEncoding('utf8');
-			res.on('data', (chunk) => { data += chunk });
-			res.on('end', () => {
-				let jsonIssues = JSON.parse(data)
+		let data = '';
+		request(options)
+			.on('data', (chunk)  => { data += chunk })
+			.on('end', (res) => {
+				let responseData = JSON.parse(data);
 
-				// check if there are any issues
-				if ( jsonIssues.data === null || jsonIssues.data === undefined || Object.keys(jsonIssues.data).length === 0 ) {
-					resolve(uid, jsonIssues);
-				} else {
-					iterateIssueList(uid, jsonIssues);
-					resolve();
-				}
+				// let's resolve each response from the batch
+				responseData.data.forEach( (response, index) => {
+					let projectUid = batch[index];
+					let body = JSON.parse(response.body);
+
+					if (response.status_code === 200 && body.total_count > 0) {
+						iterateIssueList(projectUid, body, count || 50);
+						resolve();
+					} else {
+						resolve(projectUid, body)
+					}
+
+				})
+			})
+			.on('error', (e) => {
+				Logger.error(e.message);
+				Logger.close();
+				reject(e);
 			});
-		});
-		req.on('error', (e) => {
-			Logger.error(e.message);
-			Logger.close();
-		 	reject(e);
-		});
-
-		req.end();
 	})
 }
 
 // iterate over projects to get a list of all associated issues
 const iterateProjectsList = (projectIds) => {
-	console.log("project IDs: ", projectIds);
+	let requests = Math.ceil(projectIds.length / 50); // number of batch requests to make depending on number of projects
 
-	var requests = Math.ceil(projectIds.length / 50); // number of batch requests to make depending on number of projects
-
-	var batches = [];
-	for(var i = 0; i < requests; i++){
-		batches[i] = projectIds.slice(i * 50, i + 50);
+	// split requests into 50 request a time
+	let batches = [];
+	for(let i = 0; i < requests; i++){
+		batches[i] = projectIds.slice(i * 50, (i * 50) + 50);
 	}
-	console.log("requests: ", batches);
-	const issuePromises = projectIds.map(id => new Promise((resolve, reject) => {
 
-		setTimeout(() => {
-			// resolve (getIssues(id));
+	const issuePromises = batches.map(batch => new Promise( (resolve, reject) => {
+		setTimeout( () => {
+			resolve (getIssues(batch));
 		}, RATE_LIMIT);
-
 	}));
 
 	return Promise.all(issuePromises);
