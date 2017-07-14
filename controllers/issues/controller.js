@@ -112,8 +112,10 @@ const iterateIssueList = (project_uid, issues, count) => {
 // get issues with a 1 second delay
 const getIssues = (batch, count, requests) => {
 	return new Promise((resolve, reject) => {
+
 		// create requests object if one is not passed
 		// only the first call doesn't contain a requests object
+		// all subsequent calls will contain a request object from `iterateIssueList` if issues count > 50
 		if (!requests){
 			requests = []
 			batch.forEach(projectId => {
@@ -138,7 +140,7 @@ const getIssues = (batch, count, requests) => {
 			.on('end', (res) => {
 				let responseData = JSON.parse(data);
 
-				// let's resolve each response from the batch
+				// resolve each response from the batch response and send issues to `iterateIssueList` if there are issues
 				responseData.data.forEach( (response, index) => {
 					let projectUid = batch[index];
 					let body = JSON.parse(response.body);
@@ -160,7 +162,7 @@ const getIssues = (batch, count, requests) => {
 	})
 }
 
-// iterate over projects to get a list of all associated issues
+// iterate over project uids, send batch request to get first page of issues
 const iterateProjectsList = (projectIds) => {
 	let requests = Math.ceil(projectIds.length / 50); // number of batch requests to make depending on number of projects
 
@@ -179,7 +181,7 @@ const iterateProjectsList = (projectIds) => {
 	return Promise.all(issuePromises);
 }
 
-// get a list of all the projects and return their uid
+// get a list of all the projects from db and return their uid
 const getProjectIds = () => models.Project.findAll()
 	.then(projects => projects.map(p => p.dataValues.uid));
 
